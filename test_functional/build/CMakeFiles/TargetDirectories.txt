@@ -1,1 +1,0 @@
-/home/leo/Desktop/KDtree/test_functional/build/CMakeFiles/test_functional.dir
