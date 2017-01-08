@@ -10,15 +10,14 @@
     =========================================================================
 */
 #include "KDtree.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/flann/flann.hpp"
+#include "opencv2/ml/ml.hpp"
 #include <iostream>
 #include <algorithm>
 #include <memory>
 #include <functional>
 #include <chrono>
 #include <random>
+#include <cstdlib>
 
 template<typename TimeT = std::chrono::milliseconds>
 struct measure
@@ -50,23 +49,40 @@ struct mean_stddev {
     }
 };
 
+using TYPE = float;
+
 int main(int argc, char* argv[]) {
     
-    using TYPE = float;
     
     // ----------------------------------------------------------------------------
     // Data creation
     // ----------------------------------------------------------------------------
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::normal_distribution<> gauss1(15,0);
+    std::normal_distribution<> gauss1(0,15);
     
-    const int N = 1000;
-    std::vector<std::vector<TYPE>> data;
-    for(int y=0; y<N; ++y){
-        std::vector<TYPE> row = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
-        data.push_back(row);
+    const int N0 = 100000;
+    const int COLS = 6;
+    std::array<std::array<TYPE,COLS>,N0> data;
+    for(int i=0; i<N0; ++i){
+        std::array<TYPE,COLS> row = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen)), 
+                                static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen)), 
+                                static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
+        //~ std::array<TYPE,COLS> row = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
+        data[i] = row;
     }
+    
+    // test samples
+    const int N1 = 100;
+    std::array<std::array<TYPE,COLS>,N1> test_samples;
+    for(int i=0; i<N1; ++i) {
+        std::array<TYPE,COLS> sample = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen)), 
+                                    static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen)), 
+                                    static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
+        //~ std::array<TYPE,COLS> sample = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
+        test_samples[i] = sample;
+    }
+    
     
     // ----------------------------------------------------------------------------
     // Conversion to cv::Mat
@@ -81,23 +97,130 @@ int main(int argc, char* argv[]) {
     // ----------------------------------------------------------------------------
     // Testing functions
     // ----------------------------------------------------------------------------
-    auto my_kdtree = [&](){
-        KDtree<TYPE> kdtree(&data);
+
+    auto my_brute_force = [&](const int k){
+        for(int n=0; n<N1; ++n) {
+
+            Distance::euclidean<TYPE> dist;
+            std::vector<TYPE> distances(data.size());
+            std::vector<TYPE> k_nearest_distances(k);
+            std::vector<int> k_nearest_idx(k);
+            for(int i=0; i<data.size(); ++i) {
+                distances[i] = dist(test_samples[n].data(), data[i].data(), COLS);
+                if(i>0) {
+                    if(distances[i] < k_nearest_distances[0]) {
+                        k_nearest_distances[0] = distances[i];
+                        k_nearest_idx[0] = i;
+                    }
+                } else {
+                    k_nearest_distances[0] = distances[0];
+                    k_nearest_idx[0] = 0;
+                }
+            }
+            distances[k_nearest_idx[0]] = -1;
+            
+            for(int kk=1; kk<k; ++kk) {
+                
+                int not_used_yet;
+                for(int i=0; i<data.size(); ++i) {
+                    if(distances[i] != -1) {
+                        not_used_yet = i;
+                        break;
+                    }
+                }
+                k_nearest_distances[kk] = distances[not_used_yet];
+                k_nearest_idx[kk] = not_used_yet;
+                
+                for(int i=1; i<data.size(); ++i) {
+                    if(distances[i] < k_nearest_distances[kk] && distances[i] != -1) {
+                        k_nearest_distances[kk] = distances[i];
+                        k_nearest_idx[kk] = i;
+                    }
+                }
+                distances[k_nearest_idx[kk]] = -1;
+            }
+            
+            //~ for(auto& kn:k_nearest_idx)
+                //~ std::cout << kn << ",";
+            //~ std::cout << "\n";
+        }
+    };
+
+    auto my_kdtree = [&](const int k,KDtree<TYPE,N0,COLS>& kdtree){
+        for(int n=0; n<N1; ++n) {
+            volatile auto k_nearest = kdtree.find_k_nearest<Distance::euclidean>(k, test_samples[n], 3);
+            //~ for(auto& kn:k_nearest)
+                //~ std::cout << kn << ",";
+            //~ std::cout << "\n";
+        }
     };
     
-    //auto OpenCV_kdtree = [&](){
-    //    cv::flann::KDTreeIndex<cv::DistanceTypes::DIST_L2> kdtree(mat_data);
-    //};
+    auto OpenCV_knn_kdtree = [&](const int k, cv::Ptr<cv::ml::KNearest> opencv_knn_kdtree){
+        for(int n=0; n<N1; ++n) {
+            //~ int prediction = opencv_knn_kdtree->predict(cv::Mat(1,COLS,CV_32F,test_samples[n].data()));
+            cv::Mat res;
+            float prediction = opencv_knn_kdtree->findNearest(cv::Mat(1,COLS,CV_32F,test_samples[n].data()),k,res);
+            //~ std::cout << res.at<float>(0,0) << "\n";
+        }
+    };
+    
+    auto OpenCV_brute_force = [&](const int k, cv::Ptr<cv::ml::KNearest> opencv_knn_brute){
+        for(int n=0; n<N1; ++n) {
+            //~ int prediction = opencv_knn_brute->predict(cv::Mat(1,COLS,CV_32F,test_samples[n].data()));
+            cv::Mat res;
+            float prediction = opencv_knn_brute->findNearest(cv::Mat(1,COLS,CV_32F,test_samples[n].data()),k,res);
+            //~ std::cout << prediction << "\n";
+        }
+    };
+    
+
     
     // ----------------------------------------------------------------------------
     // Get execution times
     // ----------------------------------------------------------------------------
-    auto res = mean_stddev<3>::run([&](){return measure<>::run(my_kdtree);});
-    std::cout << "Time elapsed (my KDtree) " << res.first << "(+-" << res.second << ") [ms]\n";
     
-    //res = mean_stddev<3>::run([&](){return measure<>::run(OpenCV_kdtree);});
-    //std::cout << "Time elapsed (OpenCV KDtree) " << res.first << "(+-" << res.second << ") [ms]\n";
-
+    //~ std::vector<int> K = {1};
+    std::vector<int> K = {1, 2, 5, 10, 50};
+    const int times = 1;
+    for(auto k:K) {
+        std::cout << "------------------------------------------------\n";
+        std::cout << "Number of nearest neighbours to find: " << k << " \n";
+        
+        auto res = mean_stddev<times>::run([&](){return measure<>::run(my_brute_force, k);});
+        std::cout << "Time elapsed (my BruteForce) " << res.first << "(+-" << res.second << ") [ms]\n";
+        
+        // the construction of the tree can be done beforehand in the training process.
+        KDtree<TYPE,N0,COLS> kdtree(&data, 1);
+        
+        res = mean_stddev<times>::run([&](){return measure<>::run(my_kdtree, k, kdtree);});
+        std::cout << "Time elapsed (my KDtree) " << res.first << "(+-" << res.second << ") [ms]\n";
+        
+        // the construction of the knn-bruteforce can be done beforehand in the training process.
+        cv::Ptr<cv::ml::KNearest> opencv_knn_brute = cv::ml::KNearest::create();
+        opencv_knn_brute->setAlgorithmType(cv::ml::KNearest::BRUTE_FORCE);
+        opencv_knn_brute->setIsClassifier(true);
+        cv::Mat labels(N0,1,CV_32F);
+        for(int i=0; i<N0; ++i)
+            labels.at<float>(i) = i;
+        opencv_knn_brute->train(mat_data, cv::ml::SampleTypes::ROW_SAMPLE, labels);
+        
+        res = mean_stddev<times>::run([&](){return measure<>::run(OpenCV_brute_force, k, opencv_knn_brute);});
+        std::cout << "Time elapsed (OpenCV BruteForce) " << res.first << "(+-" << res.second << ") [ms]\n";
+        
+        // the construction of the knn-tree can be done beforehand in the training process.
+        cv::Ptr<cv::ml::KNearest> opencv_knn_kdtree = cv::ml::KNearest::create();
+        opencv_knn_kdtree->setAlgorithmType(cv::ml::KNearest::KDTREE);
+        opencv_knn_kdtree->setIsClassifier(true);
+        cv::Mat labels2(N0,1,CV_32F);
+        for(int i=0; i<N0; ++i)
+            labels2.at<float>(i) = i;
+        opencv_knn_kdtree->train(mat_data, cv::ml::SampleTypes::ROW_SAMPLE, labels2);
+        
+        res = mean_stddev<times>::run([&](){return measure<>::run(OpenCV_knn_kdtree, k, opencv_knn_kdtree);});
+        std::cout << "Time elapsed (OpenCV KDtree) " << res.first << "(+-" << res.second << ") [ms]\n";
+        
+    }
+    
     return 0;
 
 }
