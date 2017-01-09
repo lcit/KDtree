@@ -65,6 +65,9 @@ The point nearest to (0.55,0.4) is:
 ```
 
 ## Performance
+
+For low dimsnional data the KDtree produces faster results comapred to brute force algorithms, however, for high dimensional data (>10) brute force becomes more powerfull.
+
 ```
  * 
  * Tested on an Intel quad-core hyperthreading i7-4700MQ 2.4GHz 64 bits architecture
