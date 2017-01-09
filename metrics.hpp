@@ -2,7 +2,7 @@
     Author: Leonardo Citraro
     Company:
     Filename: metrics.hpp
-    Last modifed:   06.01.2017 by Leonardo Citraro
+    Last modifed:   09.01.2017 by Leonardo Citraro
     Description:    Collection of distance metrics
 
     ==========================================================================================
@@ -35,29 +35,53 @@
 
 namespace Distance {
     
+    // WARNING: the result provided by these function is the square of the true euclidean distance
     template<typename T>
     struct euclidean {
+        template<size_t N>
+        inline T operator()(const std::array<T,N>& a, const std::array<T,N>& b) {
+            T distance = T();
+            for(int i=0; i<N; ++i) {
+                // calling .data() here seem improving the performance
+                T temp = a.data()[i]-b.data()[i];
+                distance += temp*temp;
+            }
+            //return std::sqrt(distance);
+            return distance;
+        }
         inline T operator()(const T* a, const T* b, const int len) {
             T distance = T();
             for(int i=0; i<len; ++i) {
                 T temp = a[i]-b[i];
                 distance += temp*temp;
             }
-            return std::sqrt(distance);
+            //~ return std::sqrt(distance);
+            return distance;
         }
-        T operator()(const T a, const T b) {
-            return std::abs(a-b);
+        inline T operator()(const T a, const T b) {
+            T temp = a-b;
+            return temp*temp;
+            //~ return std::abs(a-b);
         }
     };
     
     template<typename T>
     struct manhattan {
+        template<size_t N>
+        inline T operator()(const std::array<T,N>& a, const std::array<T,N>& b) {
+            T distance = T();
+            for(int i=0; i<N; ++i) {
+                // calling .data() here seem improving the performance
+                distance += std::abs(a.data()[i]-b.data()[i]);
+            }
+            return distance;
+        }
         inline T operator()(const T* a, const T* b, const int len) {
             T distance = T();
             for(int i=0; i<len; ++i) {
-                distance += a[i]-b[i];
+                distance += std::abs(a[i]-b[i]);
             }
-            return std::sqrt(distance);
+            return distance;
         }
         T operator()(const T a, const T b) {
             return std::abs(a-b);

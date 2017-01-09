@@ -2,7 +2,7 @@
     Author: Leonardo Citraro
     Company:
     Filename: test_performance.cpp
-    Last modifed:   03.01.2017 by Leonardo Citraro
+    Last modifed:   09.01.2017 by Leonardo Citraro
     Description:    Test of performance
 
     =========================================================================
@@ -18,13 +18,12 @@
 #include <chrono>
 #include <random>
 #include <cstdlib>
+#include <iomanip>
 
 template<typename TimeT = std::chrono::milliseconds>
-struct measure
-{
+struct measure {
     template<typename F, typename ...Args>
-    static typename TimeT::rep run(F&& func, Args&&... args)
-    {
+    static typename TimeT::rep run(F&& func, Args&&... args) {
         auto start = std::chrono::steady_clock::now();
         std::forward<decltype(func)>(func)(std::forward<Args>(args)...);
         auto duration = std::chrono::duration_cast<TimeT>(std::chrono::steady_clock::now() - start);
@@ -53,36 +52,35 @@ using TYPE = float;
 
 int main(int argc, char* argv[]) {
     
-    
     // ----------------------------------------------------------------------------
     // Data creation
     // ----------------------------------------------------------------------------
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::normal_distribution<> gauss1(0,15);
+    std::uniform_real_distribution<> gauss1(-10,10);
     
-    const int N0 = 100000;
-    const int COLS = 6;
-    std::array<std::array<TYPE,COLS>,N0> data;
-    for(int i=0; i<N0; ++i){
-        std::array<TYPE,COLS> row = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen)), 
-                                static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen)), 
-                                static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
-        //~ std::array<TYPE,COLS> row = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
-        data[i] = row;
+    const int ROWS = 10000;
+    const int COLS = 200;
+    // data can be huge thus we use the static keyword to prevent stack overflows
+    static std::array<std::array<TYPE,COLS>,ROWS> data;
+    for(int i=0; i<ROWS; ++i){
+        std::array<TYPE,COLS> row;
+        for(int j=0; j<COLS; ++j)
+            row[j] = static_cast<TYPE>(gauss1(gen));
+        data[i] = std::move(row);
     }
+    
+    std::cout << COLS << "\n";
     
     // test samples
-    const int N1 = 100;
-    std::array<std::array<TYPE,COLS>,N1> test_samples;
-    for(int i=0; i<N1; ++i) {
-        std::array<TYPE,COLS> sample = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen)), 
-                                    static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen)), 
-                                    static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
-        //~ std::array<TYPE,COLS> sample = {static_cast<TYPE>(gauss1(gen)), static_cast<TYPE>(gauss1(gen))};
-        test_samples[i] = sample;
+    const int TEST_SAMPLES = 100;
+    static std::array<std::array<TYPE,COLS>,TEST_SAMPLES> test_samples;
+    for(int i=0; i<TEST_SAMPLES; ++i) {
+        std::array<TYPE,COLS> row;
+        for(int j=0; j<COLS; ++j)
+            row[j] = static_cast<TYPE>(gauss1(gen));
+        test_samples[i] = std::move(row);
     }
-    
     
     // ----------------------------------------------------------------------------
     // Conversion to cv::Mat
@@ -99,14 +97,14 @@ int main(int argc, char* argv[]) {
     // ----------------------------------------------------------------------------
 
     auto my_brute_force = [&](const int k){
-        for(int n=0; n<N1; ++n) {
+        for(int n=0; n<TEST_SAMPLES; ++n) {
 
             Distance::euclidean<TYPE> dist;
             std::vector<TYPE> distances(data.size());
             std::vector<TYPE> k_nearest_distances(k);
             std::vector<int> k_nearest_idx(k);
             for(int i=0; i<data.size(); ++i) {
-                distances[i] = dist(test_samples[n].data(), data[i].data(), COLS);
+                distances[i] = dist(test_samples[n], data[i]);
                 if(i>0) {
                     if(distances[i] < k_nearest_distances[0]) {
                         k_nearest_distances[0] = distances[i];
@@ -120,7 +118,6 @@ int main(int argc, char* argv[]) {
             distances[k_nearest_idx[0]] = -1;
             
             for(int kk=1; kk<k; ++kk) {
-                
                 int not_used_yet;
                 for(int i=0; i<data.size(); ++i) {
                     if(distances[i] != -1) {
@@ -139,37 +136,28 @@ int main(int argc, char* argv[]) {
                 }
                 distances[k_nearest_idx[kk]] = -1;
             }
-            
-            //~ for(auto& kn:k_nearest_idx)
-                //~ std::cout << kn << ",";
-            //~ std::cout << "\n";
         }
     };
 
-    auto my_kdtree = [&](const int k,KDtree<TYPE,N0,COLS>& kdtree){
-        for(int n=0; n<N1; ++n) {
-            volatile auto k_nearest = kdtree.find_k_nearest<Distance::euclidean>(k, test_samples[n], 3);
-            //~ for(auto& kn:k_nearest)
-                //~ std::cout << kn << ",";
-            //~ std::cout << "\n";
+    auto my_kdtree = [&](const int k,KDtree<TYPE,ROWS,COLS>& kdtree){
+        for(int n=0; n<TEST_SAMPLES; ++n) {
+            volatile auto k_nearest = kdtree.find_k_nearest<Distance::euclidean>(k, test_samples[n]);
         }
     };
     
     auto OpenCV_knn_kdtree = [&](const int k, cv::Ptr<cv::ml::KNearest> opencv_knn_kdtree){
-        for(int n=0; n<N1; ++n) {
+        for(int n=0; n<TEST_SAMPLES; ++n) {
             //~ int prediction = opencv_knn_kdtree->predict(cv::Mat(1,COLS,CV_32F,test_samples[n].data()));
             cv::Mat res;
             float prediction = opencv_knn_kdtree->findNearest(cv::Mat(1,COLS,CV_32F,test_samples[n].data()),k,res);
-            //~ std::cout << res.at<float>(0,0) << "\n";
         }
     };
     
     auto OpenCV_brute_force = [&](const int k, cv::Ptr<cv::ml::KNearest> opencv_knn_brute){
-        for(int n=0; n<N1; ++n) {
+        for(int n=0; n<TEST_SAMPLES; ++n) {
             //~ int prediction = opencv_knn_brute->predict(cv::Mat(1,COLS,CV_32F,test_samples[n].data()));
             cv::Mat res;
             float prediction = opencv_knn_brute->findNearest(cv::Mat(1,COLS,CV_32F,test_samples[n].data()),k,res);
-            //~ std::cout << prediction << "\n";
         }
     };
     
@@ -179,68 +167,100 @@ int main(int argc, char* argv[]) {
     // Get execution times
     // ----------------------------------------------------------------------------
     
+    std::cout << "------------------------------------------------------------------------------------------\n";
+    std::cout << "Dimensionality = " << COLS << "\n";
+    std::cout << "                      my BruteForce        my KDtree          OpenCV BruteForce    OpenCV KDtree\n";
+    
+    
     //~ std::vector<int> K = {1};
     std::vector<int> K = {1, 2, 5, 10, 50};
-    const int times = 1;
+    const int times = 5;
     for(auto k:K) {
-        std::cout << "------------------------------------------------\n";
-        std::cout << "Number of nearest neighbours to find: " << k << " \n";
+        std::cout << "Time elapsed (k=" << std::setw(2) << k << ")   ";
         
         auto res = mean_stddev<times>::run([&](){return measure<>::run(my_brute_force, k);});
-        std::cout << "Time elapsed (my BruteForce) " << res.first << "(+-" << res.second << ") [ms]\n";
+        std::cout << std::setw(4) <<  res.first << "(+-" << std::setprecision(3) << std::setw(6) << res.second << ")     ";
         
         // the construction of the tree can be done beforehand in the training process.
-        KDtree<TYPE,N0,COLS> kdtree(&data, 1);
+        KDtree<TYPE,ROWS,COLS> kdtree(&data, 1);
         
         res = mean_stddev<times>::run([&](){return measure<>::run(my_kdtree, k, kdtree);});
-        std::cout << "Time elapsed (my KDtree) " << res.first << "(+-" << res.second << ") [ms]\n";
+        std::cout << std::setw(4) <<  res.first << "(+-" << std::setprecision(3) << std::setw(6) << res.second << ")      ";
         
         // the construction of the knn-bruteforce can be done beforehand in the training process.
         cv::Ptr<cv::ml::KNearest> opencv_knn_brute = cv::ml::KNearest::create();
         opencv_knn_brute->setAlgorithmType(cv::ml::KNearest::BRUTE_FORCE);
         opencv_knn_brute->setIsClassifier(true);
-        cv::Mat labels(N0,1,CV_32F);
-        for(int i=0; i<N0; ++i)
+        cv::Mat labels(ROWS,1,CV_32F);
+        for(int i=0; i<ROWS; ++i)
             labels.at<float>(i) = i;
         opencv_knn_brute->train(mat_data, cv::ml::SampleTypes::ROW_SAMPLE, labels);
         
         res = mean_stddev<times>::run([&](){return measure<>::run(OpenCV_brute_force, k, opencv_knn_brute);});
-        std::cout << "Time elapsed (OpenCV BruteForce) " << res.first << "(+-" << res.second << ") [ms]\n";
+        std::cout << std::setw(4) <<  res.first << "(+-" << std::setprecision(3) << std::setw(6) << res.second << ")      ";
         
         // the construction of the knn-tree can be done beforehand in the training process.
         cv::Ptr<cv::ml::KNearest> opencv_knn_kdtree = cv::ml::KNearest::create();
         opencv_knn_kdtree->setAlgorithmType(cv::ml::KNearest::KDTREE);
         opencv_knn_kdtree->setIsClassifier(true);
-        cv::Mat labels2(N0,1,CV_32F);
-        for(int i=0; i<N0; ++i)
-            labels2.at<float>(i) = i;
-        opencv_knn_kdtree->train(mat_data, cv::ml::SampleTypes::ROW_SAMPLE, labels2);
+        opencv_knn_kdtree->train(mat_data, cv::ml::SampleTypes::ROW_SAMPLE, labels);
         
         res = mean_stddev<times>::run([&](){return measure<>::run(OpenCV_knn_kdtree, k, opencv_knn_kdtree);});
-        std::cout << "Time elapsed (OpenCV KDtree) " << res.first << "(+-" << res.second << ") [ms]\n";
+        std::cout << std::setw(4) <<  res.first << "(+-" << std::setprecision(3) << std::setw(6) << res.second << ")\n";
         
     }
     
     return 0;
-
 }
 
-// Tested on an Intel quad-core hyperthreading i7-4700MQ 2.4GHz 64 bits architecture
-
 /*
- * Using HOG::none
  * 
-    Time elapsed (n_threads=1): 407(+-18.5472) [ms]
-    Time elapsed (n_threads=2): 277.667(+-1.88562) [ms]
-    Time elapsed (n_threads=4): 164(+-5.09902) [ms]
-    Time elapsed (n_threads=8): 141(+-6.37704) [ms]
-*/
-
-/*
- * Using HOG::L2hys
+ * Tested on an Intel quad-core hyperthreading i7-4700MQ 2.4GHz 64 bits architecture
+ * The results are in milliseconds (mean & std-dev). The results correspond to the time 
+ * required to classify 100 test samples with a training dataset of 10000 samples
  * 
-    Time elapsed (n_threads=1): 1088(+-4.08248) [ms]
-    Time elapsed (n_threads=2): 635.667(+-2.62467) [ms]
-    Time elapsed (n_threads=4): 382.333(+-18.8031) [ms]
-    Time elapsed (n_threads=8): 347.333(+-3.39935) [ms]
+------------------------------------------------------------------------------------------
+Dimensionality = 2
+                      my BruteForce        my KDtree          OpenCV BruteForce    OpenCV KDtree
+Time elapsed (k= 1)      8(+-     0)        1(+-     0)      34.2(+-   0.4)       4.8(+-   9.6)
+Time elapsed (k= 2)   11.4(+-  0.49)        2(+-     0)      34.8(+- 0.748)       0.4(+-  0.49)
+Time elapsed (k= 5)     19(+-     0)        4(+-     0)        33(+-  3.03)       0.2(+-   0.4)
+Time elapsed (k=10)   25.6(+-  0.49)      8.4(+-  0.49)      35.4(+-  0.49)         1(+-     0)
+Time elapsed (k=50)    144(+-  3.16)       52(+-   5.4)      40.4(+-  4.45)         3(+-     0)
+* 
+------------------------------------------------------------------------------------------
+Dimensionality = 3
+                      my BruteForce       my KDtree         OpenCV BruteForce    OpenCV KDtree
+Time elapsed (k= 1)   14.4(+-  0.49)      2.6(+-  0.49)        31(+-  1.55)         4(+-  7.51)
+Time elapsed (k= 2)   13.4(+-  0.49)      3.2(+-   0.4)        30(+-     0)         0(+-     0)
+Time elapsed (k= 5)   19.8(+-   0.4)      5.4(+-  0.49)      23.2(+-   0.4)         0(+-     0)
+Time elapsed (k=10)   38.4(+-  0.49)       16(+-     0)      39.8(+-   0.4)         2(+-     0)
+Time elapsed (k=50)    155(+-  4.26)     93.6(+-   1.2)      47.8(+- 0.748)         5(+-     0)
+*
+------------------------------------------------------------------------------------------
+Dimensionality = 10
+                      my BruteForce         my KDtree      OpenCV BruteForce    OpenCV KDtree
+Time elapsed (k= 1)     34(+- 0.632)       47(+-     0)      52.6(+-  5.31)      18.2(+-  7.91)
+Time elapsed (k= 2)   31.2(+-  3.12)     51.2(+- 0.748)        63(+- 0.632)      26.8(+- 0.748)
+Time elapsed (k= 5)   45.2(+-   0.4)     60.2(+- 0.748)      62.4(+-  0.49)      42.6(+-  0.49)
+Time elapsed (k=10)   57.8(+- 0.748)       62(+-  5.87)      64.6(+-  3.72)      66.6(+-  4.32)
+Time elapsed (k=50)    170(+-  2.19)      194(+-  1.79)      71.8(+-   0.4)       141(+-  5.11)
+*
+------------------------------------------------------------------------------------------
+Dimensionality = 100
+                      my BruteForce        my KDtree          OpenCV BruteForce    OpenCV KDtree
+Time elapsed (k= 1)  359.8(+-  2.79)      484(+-  26.1)       284(+-  15.9)       515(+-  10.1)
+Time elapsed (k= 2)    351(+-  15.6)      479(+-  9.03)       281(+-  14.8)       504(+-  25.6)
+Time elapsed (k= 5)    358(+-  15.1)      474(+-  25.3)       292(+-   1.2)       497(+-  3.72)
+Time elapsed (k=10)    383(+-  2.42)      493(+-  6.77)       292(+-  1.33)       508(+-   8.2)
+Time elapsed (k=50)    499(+-  3.76)      629(+-  5.16)       303(+-  2.19)       510(+-  4.87)
+*
+------------------------------------------------------------------------------------------
+Dimensionality = 200
+                      my BruteForce        my KDtree          OpenCV BruteForce    OpenCV KDtree
+Time elapsed (k= 1)    716(+-  50.2)      930(+-  58.4)       557(+-  37.1)       695(+-  32.5)
+Time elapsed (k= 2)    606(+-  87.8)      761(+-   142)       555(+-  39.7)       695(+-  52.3)
+Time elapsed (k= 5)    722(+-  47.3)      781(+-   135)       555(+-  26.8)       733(+-  19.5)
+Time elapsed (k=10)    675(+-  62.1)      960(+-  43.6)       545(+-  41.3)       717(+-    43)
+Time elapsed (k=50)    861(+-  37.2)     1.04e+03(+-  55.3)       550(+-  69.3)       732(+-  35.7)
 */
