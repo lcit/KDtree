@@ -54,7 +54,6 @@ The output:
 Is root node? true
 Split point(0)=
 0.6
-Is root node? false
 Split point(1a)=
 0.55
 Split point(2a)=
@@ -66,7 +65,7 @@ The point nearest to (0.55,0.4) is:
 ```
 
 ## Performance
-
+´´´
  * 
  * Tested on an Intel quad-core hyperthreading i7-4700MQ 2.4GHz 64 bits architecture
  * The results are in milliseconds (mean & std-dev). The results correspond to the time 
@@ -116,7 +115,7 @@ Time elapsed (k= 2)    606(+-  87.8)      761(+-   142)       555(+-  39.7)     
 Time elapsed (k= 5)    722(+-  47.3)      781(+-   135)       555(+-  26.8)       733(+-  19.5)
 Time elapsed (k=10)    675(+-  62.1)      960(+-  43.6)       545(+-  41.3)       717(+-    43)
 Time elapsed (k=50)    861(+-  37.2)     1.04e+03(+-  55.3)       550(+-  69.3)       732(+-  35.7)
-
+´´´
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
