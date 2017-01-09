@@ -4,8 +4,7 @@ C++ - Simple yet effective KDtree implementation with (exact) find k nearest nei
 
 ### Prerequisites
 
-Eigen 3.3.90
-to run test_performance OpenCV 3.1 is required
+Eigen 3.3.90 and OpenCV 3.1 if you want to run test_performance
 
 ### Example usage
 
@@ -26,14 +25,14 @@ int main(int argc, char* argv[]) {
     
     auto node = kdtree.get_node0();
     std::cout << "Is root node? " << std::boolalpha << node->is_root() << "\n";
-    std::cout << "Point(0)=\n" << node->get_split_point() << "\n";
+    std::cout << "Split point(0)=\n" << node->get_split_point() << "\n";
     node = node->go_left();
-    std::cout << "Point(1a)=\n" << node->get_split_point() << "\n";
+    std::cout << "Split point(1a)=\n" << node->get_split_point() << "\n";
     node = node->go_left();
-    std::cout << "Point(2a)=\n" << node->get_split_point() << "\n";
+    std::cout << "Split point(2a)=\n" << node->get_split_point() << "\n";
     node = node->go_back();
     node = node->go_right();
-    std::cout << "Point(2b)=\n" << node->get_split_point() << "\n";
+    std::cout << "Split point(2b)=\n" << node->get_split_point() << "\n";
     
     // node_data is an Eigen::Map (view) of the original data
     auto node_data = node->get_data_sliced();
@@ -53,13 +52,14 @@ int main(int argc, char* argv[]) {
 The output:
 ```
 Is root node? true
-Point(0)=
+Split point(0)=
 0.6
-Point(1a)=
+Is root node? false
+Split point(1a)=
 0.55
-Point(2a)=
+Split point(2a)=
 0.25
-Point(2b)=
+Split point(2b)=
 0.35
 The point nearest to (0.55,0.4) is: 
 0.7,0.4,

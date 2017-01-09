@@ -2,14 +2,13 @@
     Author: Leonardo Citraro
     Company:
     Filename: main.cpp
-    Last modifed:   06.01.2017 by Leonardo Citraro
+    Last modifed:   09.01.2017 by Leonardo Citraro
     Description:    KDtree example
 
     =========================================================================
 
     =========================================================================
 */
-#include "metrics.hpp"
 #include "KDtree.hpp"
 #include <iostream>
 #include <array>
@@ -24,14 +23,14 @@ int main(int argc, char* argv[]) {
     
     auto node = kdtree.get_node0();
     std::cout << "Is root node? " << std::boolalpha << node->is_root() << "\n";
-    std::cout << "Point(0)=\n" << node->get_split_point() << "\n";
+    std::cout << "Split point(0)=\n" << node->get_split_point() << "\n";
     node = node->go_left();
-    std::cout << "Point(1a)=\n" << node->get_split_point() << "\n";
+    std::cout << "Split point(1a)=\n" << node->get_split_point() << "\n";
     node = node->go_left();
-    std::cout << "Point(2a)=\n" << node->get_split_point() << "\n";
+    std::cout << "Split point(2a)=\n" << node->get_split_point() << "\n";
     node = node->go_back();
     node = node->go_right();
-    std::cout << "Point(2b)=\n" << node->get_split_point() << "\n";
+    std::cout << "Split point(2b)=\n" << node->get_split_point() << "\n";
     
     // node_data is an Eigen::Map (view) of the original data
     auto node_data = node->get_data_sliced();
