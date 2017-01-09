@@ -12,7 +12,6 @@ to run test_performance OpenCV 3.1 is required
 ![alt tag](https://raw.githubusercontent.com/lcit/KDtree/master/kdtree_example.JPG)
 
 ```C++
-#include "metrics.hpp"
 #include "KDtree.hpp"
 #include <iostream>
 #include <array>
