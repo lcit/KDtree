@@ -6,6 +6,12 @@ C++ - Simple yet effective KDtree implementation with (exact) find k nearest nei
 
 Eigen 3.3.90 and OpenCV 3.1 if you want to run test_performance
 
+### Run example
+```
+./clean.sh; ./build.sh
+./run.sh
+```
+
 ### Example usage
 
 ![alt tag](https://raw.githubusercontent.com/lcit/KDtree/master/kdtree_example.JPG)
@@ -18,11 +24,11 @@ Eigen 3.3.90 and OpenCV 3.1 if you want to run test_performance
 int main(int argc, char* argv[]) {
 
     using TYPE = float;
-    
+
     std::array<std::array<TYPE,2>,8> data = {{{{1.1, 0.6}},{{0.4, 0.5}},{{0.2, 0.6}},{{0.5, 0.9}},
                                             {{1.2, 0.3}},{{0.7, 0.4}},{{0.8, 1.0}},{{0.1, 0.2}}}};
     KDtree<TYPE,8,2> kdtree(&data);
-    
+
     auto node = kdtree.get_node0();
     std::cout << "Is root node? " << std::boolalpha << node->is_root() << "\n";
     std::cout << "Split point(0)=\n" << node->get_split_point() << "\n";
@@ -33,10 +39,10 @@ int main(int argc, char* argv[]) {
     node = node->go_back();
     node = node->go_right();
     std::cout << "Split point(2b)=\n" << node->get_split_point() << "\n";
-    
+
     // node_data is an Eigen::Map (view) of the original data
     auto node_data = node->get_data_sliced();
-    
+
     std::cout << "The point nearest to (0.55,0.4) is: \n";
     std::array<TYPE,2> sample = {0.55,0.4};
     auto nearest_samples_idx = kdtree.find_k_nearest<Distance::euclidean>(1, sample);
@@ -45,7 +51,7 @@ int main(int argc, char* argv[]) {
             std::cout << v << ",";
         std::cout << "\n";
     }
-    
+
     return 0;
 }
 ```
@@ -60,7 +66,7 @@ Split point(2a)=
 0.25
 Split point(2b)=
 0.35
-The point nearest to (0.55,0.4) is: 
+The point nearest to (0.55,0.4) is:
 0.7,0.4,
 ```
 
@@ -69,11 +75,11 @@ The point nearest to (0.55,0.4) is:
 For low dimensional data the KDtree produces faster results comapred to brute force algorithms whereas for high dimensional data (>10) brute force becomes a better solution.
 
 ```
- * 
+ *
  * Tested on an Intel quad-core hyperthreading i7-4700MQ 2.4GHz 64 bits architecture
- * The results are in milliseconds (mean & std-dev). The results correspond to the time 
+ * The results are in milliseconds (mean & std-dev). The results correspond to the time
  * required to classify 100 test samples with a training dataset of 10000 samples
- * 
+ *
 ------------------------------------------------------------------------------------------
 Dimensionality = 2
                       my BruteForce        my KDtree          OpenCV BruteForce    OpenCV KDtree
@@ -82,7 +88,7 @@ Time elapsed (k= 2)   11.4(+-  0.49)        2(+-     0)      34.8(+- 0.748)     
 Time elapsed (k= 5)     19(+-     0)        4(+-     0)        33(+-  3.03)       0.2(+-   0.4)
 Time elapsed (k=10)   25.6(+-  0.49)      8.4(+-  0.49)      35.4(+-  0.49)         1(+-     0)
 Time elapsed (k=50)    144(+-  3.16)       52(+-   5.4)      40.4(+-  4.45)         3(+-     0)
-* 
+*
 ------------------------------------------------------------------------------------------
 Dimensionality = 3
                       my BruteForce       my KDtree         OpenCV BruteForce    OpenCV KDtree
@@ -124,4 +130,3 @@ Time elapsed (k=50)    861(+-  37.2)     1.04e+03(+-  55.3)       550(+-  69.3) 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
 
 ## Acknowledgments
-
